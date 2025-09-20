@@ -1,0 +1,131 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./next.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Ratio {
+  RATIO_16_9
+  RATIO_1_1
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum Status {
+  MARRIED
+  DIVORCED
+  SINGLE
+}
+
+model User {
+  database_id Int      @id @default(autoincrement())
+  id          String   @unique
+  pix_id      String   @unique @default(cuid())
+  name        String?
+  authorized  Boolean? @default(false)
+  blacklisted Boolean? @default(false)
+  premium     Boolean? @default(false)
+  role        Role?    @default(USER)
+
+  created DateTime @default(now())
+  updated DateTime @updatedAt
+
+  config_id String  @unique @default(cuid())
+  config    Config? @relation(fields: [config_id], references: [config_id])
+
+  stats_id String @unique @default(cuid())
+  stats    Stats? @relation(fields: [stats_id], references: [stats_id])
+
+  marriagesAsP1    Marriage[] @relation("Partner1")
+  marriagesAsP2    Marriage[] @relation("Partner2")
+  divorceRequested Marriage?  @relation("DivorceRequester")
+
+  groups     Group[]
+  groupUsers GroupUser[]
+
+  sentTransactions     Transaction[] @relation("SentTransactions")
+  receivedTransactions Transaction[] @relation("ReceivedTransactions")
+
+  sentPix     ScheduledPix[] @relation("ScheduledPixSender")
+  receivedPix ScheduledPix[] @relation("ScheduledPixReceiver")
+}
+
+model Stats {
+  stats_id String @id @default(cuid())
+  hangman  Json?
+  ttt      Json?
+  stickers Int    @default(0)
+  user     User?  @relation()
+}
+
+model Config {
+  config_id     String  @id @default(cuid())
+  user_ratio    Ratio   @default(RATIO_1_1)
+  auto_sticker  Boolean @default(false)
+  commands_used Int     @default(0)
+  user          User?   @relation()
+}
+
+model Transaction {
+  transaction_id Int      @id @default(autoincrement())
+  sender_id      Int?
+  receiver_id    Int?
+  sender         User?    @relation("SentTransactions", fields: [sender_id], references: [database_id])
+  receiver       User?    @relation("ReceivedTransactions", fields: [receiver_id], references: [database_id])
+  amount         Int
+  type           String
+  created_at     DateTime @default(now())
+}
+
+model Marriage {
+  marriage_id        Int       @id @default(autoincrement())
+  partner1ID         String
+  partner2ID         String
+  status             Status    @default(SINGLE)
+  since              DateTime?
+  divorceRequested   Boolean?  @default(false)
+  divorceRequesterID String?      @unique
+  divorceRequester   User?     @relation("DivorceRequester", fields: [divorceRequesterID], references: [id])
+  partner1           User      @relation("Partner1", fields: [partner1ID], references: [id])
+  partner2           User      @relation("Partner2", fields: [partner2ID], references: [id])
+}
+
+model Group {
+  database_id   Int         @id @default(autoincrement())
+  group_id      String      @unique
+  name          String?
+  autosticker   Boolean     @default(false)
+  prefix        String      @default(".")
+  members       Int         @default(0)
+  last_activity DateTime    @default(now())
+  hangman       Json?
+  ttt           Json?
+  users         User[]
+  groupUsers    GroupUser[]
+}
+
+model GroupUser {
+  user_id  String
+  group_id String
+  messages Int    @default(0)
+  user     User   @relation(fields: [user_id], references: [id])
+  group    Group  @relation(fields: [group_id], references: [group_id])
+
+  @@id([user_id, group_id])
+}
+
+model ScheduledPix {
+  pix_id        String    @unique @default(cuid())
+  amount        Int       @default(0)
+  senderID      Int?
+  receiverID    Int?
+  schedule_time DateTime?
+  sender        User?     @relation("ScheduledPixSender", fields: [senderID], references: [database_id])
+  receiver      User?     @relation("ScheduledPixReceiver", fields: [receiverID], references: [database_id])
+}

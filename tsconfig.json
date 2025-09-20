@@ -1,0 +1,21 @@
+{
+	"compilerOptions": {
+		"target": "ESNext",
+		"module": "ESNext",
+		"moduleResolution": "Node",
+		"strict": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"skipLibCheck": true,
+		"resolveJsonModule": true,
+		"noEmit": true,
+		"allowImportingTsExtensions": true,
+
+		"baseUrl": "./",
+		"paths": {
+			"@/*": ["*"],
+			"events": ["events"]
+		}
+	},
+	"exclude": ["node_modules"]
+}
