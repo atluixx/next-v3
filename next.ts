@@ -182,7 +182,6 @@ prisma
       headless: true,
       useChrome: true,
       authTimeout: 0,
-      executablePath: "/usr/bin/google-chrome",
       chromiumArgs: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu", "--disable-dev-shm-usage"],
       sessionId: "next-v3",
     }).then((c) => setup(c));

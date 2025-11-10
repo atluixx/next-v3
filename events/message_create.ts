@@ -1,6 +1,7 @@
 import type { Message } from "@open-wa/wa-automate-types-only";
 import type { ExpandedClient } from "@/next";
 import command_handler from "./command_handler";
+import media_to_sticker from "@/functions/media_to_sticker";
 
 async function m_handler(m: Message, c: ExpandedClient) {
   try {
@@ -79,6 +80,8 @@ async function m_handler(m: Message, c: ExpandedClient) {
         },
       });
 
+      let fire = `${c.prefix}fig`;
+
       if (!m.isMedia) {
         console.log({
           time: new Date().toLocaleTimeString(),
@@ -87,6 +90,8 @@ async function m_handler(m: Message, c: ExpandedClient) {
           chatName: m.chat.name,
           content: m.content?.trim(),
         });
+      } else if (m.isMedia && m.caption.includes(fire)) {
+        await media_to_sticker(m, c);
       }
 
       if (m.content?.trim().startsWith(c.prefix)) {

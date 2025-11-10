@@ -1,5 +1,4 @@
 import { generateWeatherImage } from "../../functions/generate_weather_image.js";
-
 export default {
   name: "weather",
   aliases: ["clima"],

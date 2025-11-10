@@ -1,8 +1,6 @@
 import { renderFlatMinimalTicTacToe } from "../../functions/render_ttt.js";
-
 const games = {};
 const pendingChallenges = {};
-
 function checkWin(board) {
   const lines = [
     [board[0][0], board[0][1], board[0][2]],
@@ -22,7 +20,6 @@ function checkWin(board) {
   if (isFull) return "draw";
   return null;
 }
-
 async function updateStats(c, winnerId, players) {
   for (const [id, player] of Object.entries(players)) {
     const isWinner = winnerId === player.id;
@@ -64,7 +61,6 @@ async function updateStats(c, winnerId, players) {
     });
   }
 }
-
 export default {
   name: "jdv",
   aliases: ["jogodavelha", "ttt"],

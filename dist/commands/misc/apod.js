@@ -1,5 +1,4 @@
 import { getAPODData } from "../../functions/apod.js";
-
 export default {
   name: "apod",
   description: "Obtém a Imagem Astronômica do Dia da NASA.",

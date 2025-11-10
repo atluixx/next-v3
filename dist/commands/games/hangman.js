@@ -1,10 +1,8 @@
 import fs from "node:fs";
 import { InferenceClient } from "@huggingface/inference";
 import { generateCanvas } from "../../functions/render_hangman.js";
-
 const games = {};
 const client = new InferenceClient(process.env.HUGGINGFACE_API_KEY);
-
 async function fetchWordHintDescription() {
   try {
     const response = await client.chatCompletion({
@@ -14,19 +12,19 @@ async function fetchWordHintDescription() {
         {
           role: "user",
           content: `Gere uma palavra em português para o jogo da Forca. Para cada palavra, forneça os seguintes itens:
-            1. A palavra exata
-            2. Uma dica clara, objetiva e confiável que descreva a palavra de forma sucinta, sem entregar a resposta
-            3. Uma descrição detalhada, completa e rica em contexto, com no máximo 50 palavras
+1. A palavra exata
+2. Uma dica clara, objetiva e confiável que descreva a palavra de forma sucinta, sem entregar a resposta
+3. Uma descrição detalhada, completa e rica em contexto, com no máximo 50 palavras
 
-            Separe os três itens usando essa barra (|) como delimitador. Retorne apenas texto, sem aspas, marcadores ou explicações adicionais.
-            Evite gerar essas palavras: ${fs
-              .readFileSync("./persistence/hangman.txt", "utf-8")
-              .split("\n")
-              .filter(Boolean)
-              .join(", ")}
+Separe os três itens usando essa barra (|) como delimitador. Retorne apenas texto, sem aspas, marcadores ou explicações adicionais.
+Evite gerar essas palavras: ${fs
+            .readFileSync("./persistence/hangman.txt", "utf-8")
+            .split("\n")
+            .filter(Boolean)
+            .join(", ")}
 
-            Exemplo:
-            Abacaxi | Fruta tropical com casca espinhosa e polpa doce e suculenta | O abacaxi é uma fruta típica de regiões tropicais, conhecida por sua polpa suculenta e sabor doce e levemente ácido. É amplamente utilizado em sucos, sobremesas, pratos salgados, conservas e até em coquetéis.`,
+Exemplo:
+Abacaxi | Fruta tropical com casca espinhosa e polpa doce e suculenta | O abacaxi é uma fruta típica de regiões tropicais, conhecida por sua polpa suculenta e sabor doce e levemente ácido. É amplamente utilizado em sucos, sobremesas, pratos salgados, conservas e até em coquetéis.`,
         },
       ],
     });
@@ -46,7 +44,6 @@ async function fetchWordHintDescription() {
     };
   }
 }
-
 async function updateStats(c, playerId, won) {
   const user = await c.db.user.findUnique({
     where: { id: playerId },
@@ -79,7 +76,6 @@ async function updateStats(c, playerId, won) {
     },
   });
 }
-
 export default {
   name: "hangman",
   aliases: ["forca"],

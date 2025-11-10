@@ -71,7 +71,7 @@ async function setProperties(c) {
           const res = path.resolve(dir, entry.name);
           if (entry.isDirectory()) {
             return getFilesRecursively(res);
-          } else if (entry.isFile() && res.endsWith(".ts")) {
+          } else if (entry.isFile() && res.endsWith(".js")) {
             return res;
           }
           return [];
@@ -117,7 +117,6 @@ prisma
       headless: true,
       useChrome: true,
       authTimeout: 0,
-      executablePath: "/usr/bin/google-chrome",
       chromiumArgs: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu", "--disable-dev-shm-usage"],
       sessionId: "next-v3",
     }).then((c) => setup(c));

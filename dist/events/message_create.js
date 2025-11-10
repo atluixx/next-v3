@@ -1,5 +1,5 @@
 import command_handler from "./command_handler.js";
-
+import media_to_sticker from "../functions/media_to_sticker.js";
 async function m_handler(m, c) {
   try {
     const senderName = m.sender.pushname || m.sender.shortName || m.sender.formattedName;
@@ -72,6 +72,7 @@ async function m_handler(m, c) {
           messages: 1,
         },
       });
+      let fire = `${c.prefix}fig`;
       if (!m.isMedia) {
         console.log({
           time: new Date().toLocaleTimeString(),
@@ -80,6 +81,8 @@ async function m_handler(m, c) {
           chatName: m.chat.name,
           content: m.content?.trim(),
         });
+      } else if (m.isMedia && m.caption.includes(fire)) {
+        await media_to_sticker(m, c);
       }
       if (m.content?.trim().startsWith(c.prefix)) {
         await command_handler(m, c);
@@ -89,5 +92,4 @@ async function m_handler(m, c) {
     console.error("❌ Error in m_handler:", err);
   }
 }
-
 export default m_handler;
