@@ -1,15 +1,9 @@
-import {
-  type Client,
-  type ContactId,
-  create,
-  type GroupChatId,
-  type Message,
-} from "@open-wa/wa-automate";
+import { type Client, type ContactId, create, type GroupChatId, type Message } from "@open-wa/wa-automate";
 import { PrismaClient } from "@prisma/client";
 import "dotenv/config";
 import fs from "node:fs/promises";
 import path from "node:path";
-import m_handler from "./events/message_create.ts";
+import m_handler from "./events/message_create";
 
 const prisma = new PrismaClient();
 
@@ -27,11 +21,7 @@ export interface Command {
 
 export interface ExpandedClient extends Client {
   db: PrismaClient;
-  FGU: (params: {
-    input?: string;
-    chat?: string;
-    message: Message;
-  }) => Promise<ContactId | null>;
+  FGU: (params: { input?: string; chat?: string; message: Message }) => Promise<ContactId | null>;
   AC: (g: GroupChatId, s: ContactId) => Promise<boolean>;
   MC: (s: ContactId) => boolean;
   LC: () => Promise<void>;
@@ -78,9 +68,7 @@ async function setProperties(c: ExpandedClient) {
     if (!input && message.quotedMsg) {
       const quotedUserId =
         message.quotedMsg.author ??
-        participants.find((p) =>
-          p.id?._serialized?.includes(message.quotedMsg?.author ?? ""),
-        )?.id ??
+        participants.find((p) => p.id?._serialized?.includes(message.quotedMsg?.author ?? ""))?.id ??
         null;
 
       return contacts.find((c) => c.id === quotedUserId)?.id || null;
@@ -97,16 +85,12 @@ async function setProperties(c: ExpandedClient) {
     else mode = "name";
 
     const strategies: Record<string, () => typeof contacts> = {
-      number: () =>
-        contacts.filter((c) => c.id.replace("@c.us", "").includes(cleanInput)),
+      number: () => contacts.filter((c) => c.id.replace("@c.us", "").includes(cleanInput)),
       id: () => contacts.filter((c) => c.id === input),
-      tag: () =>
-        contacts.filter((c) => c.id.replace("@c.us", "") === cleanInput),
+      tag: () => contacts.filter((c) => c.id.replace("@c.us", "") === cleanInput),
       name: () =>
         contacts.filter((c) => {
-          const name = (c.pushname || c.formattedName || c.name || "")
-            .toLowerCase()
-            .replace(/\s+/g, "");
+          const name = (c.pushname || c.formattedName || c.name || "").toLowerCase().replace(/\s+/g, "");
           return name.includes(cleanInput);
         }),
     };
@@ -199,12 +183,7 @@ prisma
       useChrome: true,
       authTimeout: 0,
       executablePath: "/usr/bin/google-chrome",
-      chromiumArgs: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-gpu",
-        "--disable-dev-shm-usage",
-      ],
+      chromiumArgs: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu", "--disable-dev-shm-usage"],
       sessionId: "next-v3",
     }).then((c) => setup(c));
   })
