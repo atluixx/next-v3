@@ -1,13 +1,14 @@
 import command_handler from "./command_handler.js";
 import media_to_sticker from "../functions/media_to_sticker.js";
+
 async function m_handler(m, c) {
   try {
     const senderName = m.sender.pushname || m.sender.shortName || m.sender.formattedName;
+
+    // Ensure user exists or update their name
     const user = await c.db.user.upsert({
       where: { id: m.sender.id },
-      update: {
-        name: senderName,
-      },
+      update: { name: senderName },
       create: {
         id: m.sender.id,
         name: senderName,
@@ -36,14 +37,17 @@ async function m_handler(m, c) {
         },
       },
     });
+
+    // Process group metadata
     if (m.chat.isGroup && m.chat.id) {
       let memberCount = 0;
       try {
-        const groupMetadata = await c.getGroupMembers(m.chat.id);
-        memberCount = groupMetadata.length;
+        const members = await c.getGroupMembers(m.chat.id);
+        memberCount = members?.length || 0;
       } catch (err) {
         console.warn(`⚠️ Could not fetch members for group ${m.chat.id}:`, err);
       }
+
       const group = await c.db.group.upsert({
         where: { group_id: m.chat.id },
         update: {
@@ -58,6 +62,7 @@ async function m_handler(m, c) {
           members: memberCount,
         },
       });
+
       await c.db.groupUser.upsert({
         where: {
           user_id_group_id: {
@@ -72,24 +77,51 @@ async function m_handler(m, c) {
           messages: 1,
         },
       });
-      let fire = `${c.prefix}fig`;
-      if (!m.isMedia) {
-        console.log({
-          time: new Date().toLocaleTimeString(),
-          from: m.sender.pushname,
-          isGroup: m.chat.isGroup,
-          chatName: m.chat.name,
-          content: m.content?.trim(),
-        });
-      } else if (m.isMedia && m.caption.includes(fire)) {
-        await media_to_sticker(m, c);
-      }
-      if (m.content?.trim().startsWith(c.prefix)) {
-        await command_handler(m, c);
-      }
     }
-  } catch (err) {
-    console.error("❌ Error in m_handler:", err);
+
+    const prefixCommand = `${c.prefix}fig`;
+
+    // Logging for visibility
+    if (!m.isMedia) {
+      console.log({
+        time: new Date().toLocaleTimeString(),
+        from: m.sender.pushname,
+        isGroup: m.chat.isGroup,
+        chatName: m.chat.name,
+        content: m.content?.trim(),
+      });
+    } else {
+      console.log("📸 Received media:", {
+        type: m.type,
+        mimetype: m.mimetype,
+        isGif: m.isGif,
+        caption: m.caption,
+      });
+    }
+
+    // Determine if media should trigger sticker creation
+    const hasCommand =
+      m.caption?.toLowerCase().includes(prefixCommand.toLowerCase()) ||
+      m.content?.toLowerCase().includes(prefixCommand.toLowerCase());
+
+    const isValidMedia =
+      m.isMedia ||
+      m.isGif === true ||
+      ["video", "image"].includes(m.type) ||
+      (m.mimetype && (m.mimetype.startsWith("video/") || m.mimetype.startsWith("image/")));
+
+    if (hasCommand && isValidMedia) {
+      console.log("🔥 Triggering media_to_sticker...");
+      await media_to_sticker(m, c);
+    }
+
+    // Handle text commands normally
+    if (m.content?.trim().startsWith(c.prefix)) {
+      await command_handler(m, c);
+    }
+  } catch (error) {
+    console.error("Error: ", error);
   }
 }
+
 export default m_handler;

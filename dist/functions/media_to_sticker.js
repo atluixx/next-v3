@@ -1,143 +1,161 @@
-import sharp from "sharp";
-import fs from "fs";
-import path from "path";
-import { exec } from "child_process";
-import { promisify } from "util";
-const __dirname = path.dirname;
+import { decryptMedia } from "@open-wa/wa-automate";
 
-const execAsync = promisify(exec);
-const media_to_sticker = async (m, c) => {
+// Prevent concurrent processing per user
+const usersProcessingGif = new Map();
+
+function canProcessGif(userId) {
+  return !usersProcessingGif.has(userId);
+}
+
+function markProcessingStart(userId) {
+  usersProcessingGif.set(userId, true);
+}
+
+function markProcessingEnd(userId) {
+  usersProcessingGif.delete(userId);
+}
+
+// Create GIF/video sticker
+async function createGifSticker(message, client) {
+  const userId = message.sender.id;
+
+  if (!canProcessGif(userId)) {
+    console.debug(`⚠️ User ${userId} is already processing a GIF, skipping.`);
+    await client.reply(
+      message.from,
+      "⏳ You are already processing a GIF sticker. Please wait for it to finish before sending another.",
+      message.id,
+    );
+    return;
+  }
+
+  console.debug("🎞️ Starting GIF/video sticker creation for:", userId);
+  markProcessingStart(userId);
+
   try {
-    // Check if message has media
-    if (!m.mimetype || (!m.mimetype.startsWith("image/") && !m.mimetype.startsWith("video/"))) {
-      return c.reply(m.chatId, "Please send an image or video to convert to sticker.", m.id);
-    }
-    // Download the media
-    const mediaBuffer = await c.decryptMedia(m);
-    const tempInputPath = path.join(__dirname, `temp_input_${Date.now()}${getFileExtension(m.mimetype)}`);
-    const outputPath = path.join(__dirname, `sticker_${Date.now()}.webp`);
-    // Save downloaded media to temp file
-    fs.writeFileSync(tempInputPath, mediaBuffer);
-    try {
-      // Process based on media type
-      if (m.mimetype.startsWith("image/")) {
-        await processImageSticker(tempInputPath, outputPath);
-      } else if (m.mimetype.startsWith("video/")) {
-        await processVideoSticker(tempInputPath, outputPath);
+    const pack = "η";
+    const author = "Next";
+
+    const buffer = await decryptMedia(message);
+    console.debug("✅ Media decrypted successfully for sticker creation.");
+
+    const fpsList = [30, 24, 20, 18, 15, 12, 10];
+    let success = false;
+
+    for (const fps of fpsList) {
+      if (success) break;
+
+      const processOptions = {
+        fps,
+        startTime: "00:00:00.0",
+        endTime: "00:00:10.0",
+        loop: 0,
+        square: 240,
+      };
+
+      const stickerMetadata = { author, pack };
+
+      try {
+        await client.sendMp4AsSticker(message.from, buffer, processOptions, stickerMetadata);
+        console.debug(`✅ Sticker created successfully using ${fps} FPS for user ${userId}`);
+        success = true;
+      } catch (err) {
+        console.warn(`⚠️ Failed to create GIF sticker at ${fps} FPS for ${userId}:`, err.message || err);
       }
-      // Check file size and compress further if needed
-      await ensureFileSizeUnder1MB(outputPath);
-      // Send as sticker
-      await c.sendImageAsSticker(m.chatId, outputPath, {
-        author: "η",
-        pack: "Next",
-      });
-      // Cleanup temp files
-      fs.unlinkSync(tempInputPath);
-      fs.unlinkSync(outputPath);
-    } catch (processError) {
-      // Cleanup on error
-      if (fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath);
-      if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
-      throw processError;
     }
-  } catch (error) {
-    console.error("Error creating sticker:", error);
-    await c.reply(m.chatId, "❌ Failed to create sticker. Please try again with a different image/video.", m.id);
+
+    if (!success) {
+      console.error(`❌ Failed to create GIF sticker after all attempts for ${userId}`);
+      await client.reply(
+        message.from,
+        "⚠️ Could not create the GIF sticker. Try using a shorter or smaller video.",
+        message.id,
+      );
+    }
+  } catch (err) {
+    console.error(`💥 Critical error while processing GIF sticker for ${userId}:`, err);
+    await client.reply(message.from, "❌ An unexpected error occurred while processing your media.", message.id);
+  } finally {
+    markProcessingEnd(userId);
+    console.debug(`🔚 Finished GIF/video sticker processing for ${userId}.`);
   }
-};
-// Helper function to get file extension
-function getFileExtension(mimetype) {
-  const extensions = {
-    "image/jpeg": ".jpg",
-    "image/png": ".png",
-    "image/webp": ".webp",
-    "image/gif": ".gif",
-    "video/mp4": ".mp4",
-    "video/webm": ".webm",
-    "video/avi": ".avi",
-    "video/mov": ".mov",
-  };
-  return extensions[mimetype] || ".bin";
 }
-// Process image to sticker
-async function processImageSticker(inputPath, outputPath) {
-  const image = sharp(inputPath);
-  const metadata = await image.metadata();
-  // Calculate dimensions for 1:1 aspect ratio
-  const size = Math.min(metadata.width || 512, metadata.height || 512);
-  const left = Math.floor(((metadata.width || 512) - size) / 2);
-  const top = Math.floor(((metadata.height || 512) - size) / 2);
-  // Process image: crop to square and resize to 512x512
-  await image
-    .extract({ left, top, width: size, height: size })
-    .resize(512, 512, { fit: "cover" })
-    .webp({ quality: 80, effort: 6 })
-    .toFile(outputPath);
-}
-// Process video to sticker (animated sticker)
-async function processVideoSticker(inputPath, outputPath) {
-  // Use ffmpeg to convert video to webp sticker
-  const ffmpegCommand = [
-    "ffmpeg",
-    "-i",
-    inputPath,
-    "-vf",
-    "scale=512:512:force_original_aspect_ratio=disable:flags=lanczos,crop=512:512:exact=1",
-    "-c:v",
-    "libwebp",
-    "-loop",
-    "0",
-    "-qscale",
-    "75",
-    "-preset",
-    "default",
-    "-an", // remove audio
-    "-y", // overwrite output file
-    outputPath,
-  ].join(" ");
+
+// Create image sticker
+async function createImageSticker(message, client) {
+  const userId = message.sender.id;
+  console.debug("🖼️ Creating image sticker for:", userId);
+
+  if (!message.mimetype || !message.mimetype.startsWith("image/")) {
+    console.debug(`⚠️ Not an image (mimetype: ${message.mimetype}), ignoring.`);
+    return;
+  }
+
   try {
-    await execAsync(ffmpegCommand);
-  } catch (error) {
-    // If ffmpeg fails, try using sharp for GIFs
-    if (inputPath.endsWith(".gif")) {
-      await sharp(inputPath, { animated: true })
-        .resize(512, 512, { fit: "cover" })
-        .webp({ quality: 75, effort: 6 })
-        .toFile(outputPath);
-    } else {
-      throw new Error("FFmpeg is required for video stickers. Please install ffmpeg.");
+    const pack = "η";
+    const author = "Next";
+    const useStretch = true;
+
+    let buffer = await decryptMedia(message);
+
+    if (useStretch) {
+      console.debug("🧩 Normalizing image to square canvas...");
+      const { loadImage, createCanvas } = await import("canvas");
+      const img = await loadImage(buffer);
+      const max = Math.max(img.width, img.height);
+      const canvas = createCanvas(max, max);
+      const ctx = canvas.getContext("2d");
+
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, max, max);
+      ctx.drawImage(img, (max - img.width) / 2, (max - img.height) / 2);
+
+      buffer = canvas.toBuffer("image/jpeg");
     }
+
+    await client.sendImageAsSticker(message.from, buffer, { author, pack, keepScale: true });
+    console.debug(`✅ Image sticker sent successfully to ${userId}`);
+  } catch (err) {
+    console.error("❌ Error processing image sticker:", err);
+    await client.reply(message.from, "❌ Failed to create sticker from image.", message.id);
   }
 }
-// Ensure file size is under 1MB
-async function ensureFileSizeUnder1MB(filePath) {
-  let stats = fs.statSync(filePath);
-  let quality = 80;
-  while (stats.size > 1000000 && quality > 10) {
-    quality -= 10;
-    const tempPath = filePath + ".temp";
-    if (filePath.endsWith(".webp")) {
-      await sharp(filePath).webp({ quality, effort: 6 }).toFile(tempPath);
-    } else {
-      await sharp(filePath).resize(512, 512, { fit: "cover" }).webp({ quality, effort: 6 }).toFile(tempPath);
+
+// Main media handler
+async function media_to_sticker(message, client) {
+  const mimetype = message.mimetype || "";
+  const type = message.type || "";
+  const duration = Number(message.duration) || 0;
+
+  // WhatsApp “GIFs” are actually MP4s with short duration and isGif=true
+  const isVideo = type === "video" || mimetype.startsWith("video/");
+  const isShortVideo = isVideo && duration <= 10;
+  const isGifLike =
+    message.isGif === true || // core flag for GIFs
+    Boolean(message.gifPlayback) || // legacy support
+    isShortVideo;
+
+  const isImage = mimetype.startsWith("image/") && !isVideo && !isGifLike;
+
+  console.debug(
+    `📦 Media detected → type=${type}, mimetype=${mimetype}, duration=${duration}s, isGif=${message.isGif}, gifPlayback=${message.gifPlayback}`,
+  );
+
+  if (isVideo || isGifLike) {
+    if (isVideo && duration > 10) {
+      await client.reply(
+        message.from,
+        "⚠️ WhatsApp stickers must be under 10 seconds. Please trim your video.",
+        message.id,
+      );
+      return;
     }
-    fs.renameSync(tempPath, filePath);
-    stats = fs.statSync(filePath);
-  }
-  // If still too large, reduce dimensions
-  if (stats.size > 1000000) {
-    let dimensions = 512;
-    while (stats.size > 1000000 && dimensions > 100) {
-      dimensions -= 50;
-      const tempPath = filePath + ".temp";
-      await sharp(filePath)
-        .resize(dimensions, dimensions, { fit: "cover" })
-        .webp({ quality: 50, effort: 6 })
-        .toFile(tempPath);
-      fs.renameSync(tempPath, filePath);
-      stats = fs.statSync(filePath);
-    }
+    await createGifSticker(message, client);
+  } else if (isImage) {
+    await createImageSticker(message, client);
+  } else {
+    console.debug(`⚠️ Unsupported media type: ${type} (${mimetype})`);
   }
 }
+
 export default media_to_sticker;
